@@ -1,0 +1,305 @@
+<template>
+  <div class="detail-base post-detail">
+    <t-loading :loading="loading" text="加载中...">
+      <template v-if="post">
+        <t-card title="文章信息" :bordered="false" class="detail-card">
+          <div class="info-row">
+            <span class="label">标题：</span>
+            <span class="value">{{ post.title }}</span>
+          </div>
+          <div class="info-row">
+            <span class="label">状态：</span>
+            <t-tag v-if="post.status === 0" theme="success" variant="light">正常</t-tag>
+            <t-tag v-else-if="post.status === 1" theme="warning" variant="light">审核中</t-tag>
+            <t-tag v-else-if="post.status === 2" theme="danger" variant="light">已删除</t-tag>
+            <t-tag v-else theme="default" variant="light">已屏蔽</t-tag>
+          </div>
+          <div class="info-row">
+            <span class="label">分类：</span>
+            <span class="value">{{ post.categoryName1 || '-' }} / {{ post.categoryName2 || '-' }}</span>
+          </div>
+          <div class="info-row">
+            <span class="label">作者：</span>
+            <span class="value">{{ post.nickname || post.username || '-' }}</span>
+          </div>
+          <div class="info-row">
+            <span class="label">发布时间：</span>
+            <span class="value">{{ post.createdAt }}</span>
+          </div>
+          <div class="info-actions">
+            <t-button theme="danger" variant="outline" size="small" @click="handleDelete">删除</t-button>
+          </div>
+        </t-card>
+
+        <t-card title="内容预览" :bordered="false" class="detail-card">
+          <div class="content-preview" v-html="contentHtml"></div>
+        </t-card>
+
+        <t-card title="数据统计" :bordered="false" class="detail-card">
+          <t-row :gutter="24">
+            <t-col :span="6">
+              <div class="stat-item">
+                <div class="stat-value">{{ post.viewCount ?? 0 }}</div>
+                <div class="stat-label">阅读量</div>
+              </div>
+            </t-col>
+            <t-col :span="6">
+              <div class="stat-item">
+                <div class="stat-value">{{ post.likeCount ?? 0 }}</div>
+                <div class="stat-label">点赞数</div>
+              </div>
+            </t-col>
+            <t-col :span="6">
+              <div class="stat-item">
+                <div class="stat-value">{{ post.commentCount ?? 0 }}</div>
+                <div class="stat-label">评论数</div>
+              </div>
+            </t-col>
+            <t-col :span="6">
+              <div class="stat-item">
+                <div class="stat-value">{{ post.favoriteCount ?? 0 }}</div>
+                <div class="stat-label">收藏数</div>
+              </div>
+            </t-col>
+          </t-row>
+          <p class="stat-tip">数据趋势图需后端提供按天统计接口</p>
+        </t-card>
+
+        <t-card title="评论管理" :bordered="false" class="detail-card">
+          <t-table
+            :columns="commentColumns"
+            :data="comments"
+            row-key="id"
+            :loading="commentLoading"
+            :max-height="320"
+          >
+            <template #content="{ row }">
+              <span class="comment-content">{{ row.content }}</span>
+            </template>
+            <template #status="{ row }">
+              <t-tag v-if="row.status === 0" theme="success" variant="light" size="small">正常</t-tag>
+              <t-tag v-else-if="row.status === 1" theme="danger" variant="light" size="small">已删除</t-tag>
+              <t-tag v-else theme="default" variant="light" size="small">已屏蔽</t-tag>
+            </template>
+            <template #op="{ row }">
+              <a class="t-button-link" @click="handleReply(row)">回复</a>
+              <a class="t-button-link" @click="handleAudit(row)">审核</a>
+              <a class="t-button-link t-link-danger" @click="handleCommentDelete(row)">删除</a>
+            </template>
+          </t-table>
+          <p v-if="comments.length === 0 && !commentLoading" class="empty-tip">暂无评论</p>
+        </t-card>
+      </template>
+      <template v-else-if="!loading && error">
+        <t-alert theme="error" :message="error" />
+      </template>
+    </t-loading>
+  </div>
+</template>
+
+<script lang="ts">
+import Vue from 'vue';
+import { DialogPlugin } from 'tdesign-vue';
+import { marked } from 'marked';
+import { getPostDetail, getCommentList } from '@/service/service-blog';
+
+export default Vue.extend({
+  name: 'PostDetail',
+  data() {
+    return {
+      loading: true,
+      error: '',
+      post: null as any,
+      comments: [] as any[],
+      commentLoading: false,
+      commentColumns: [
+        { title: 'ID', colKey: 'id', width: 70 },
+        { title: '内容', colKey: 'content', ellipsis: true, minWidth: 180, cell: { col: 'content' } },
+        { title: '评论者', colKey: 'nickname', width: 100 },
+        { title: '点赞', colKey: 'likeCount', width: 70 },
+        { title: '状态', colKey: 'status', width: 80, cell: { col: 'status' } },
+        { title: '时间', colKey: 'createdAt', width: 160 },
+        { title: '操作', colKey: 'op', width: 150, cell: { col: 'op' } },
+      ],
+    };
+  },
+  computed: {
+    contentHtml(): string {
+      const c = this.post?.content || '';
+      if (!c.trim()) return '<p class="empty-tip">暂无内容</p>';
+      try {
+        return marked.parse(c, { gfm: true }) as string;
+      } catch {
+        return c.replace(/</g, '&lt;').replace(/>/g, '&gt;');
+      }
+    },
+  },
+  watch: {
+    '$route.params.id'() {
+      this.loadPost();
+    },
+  },
+  mounted() {
+    this.loadPost();
+  },
+  methods: {
+    loadPost() {
+      const id = Number(this.$route.params.id);
+      if (!id) {
+        this.loading = false;
+        this.error = '缺少文章ID';
+        return;
+      }
+      this.loading = true;
+      this.error = '';
+      getPostDetail(id)
+        .then((res: any) => {
+          this.post = res || null;
+          this.loadComments();
+        })
+        .catch(() => {
+          this.error = '加载文章失败';
+          this.post = null;
+        })
+        .finally(() => {
+          this.loading = false;
+        });
+    },
+    loadComments() {
+      const id = this.post?.id;
+      if (!id) return;
+      this.commentLoading = true;
+      getCommentList(id)
+        .then((res: any) => {
+          this.comments = Array.isArray(res) ? res : (res?.list || []);
+        })
+        .catch(() => {
+          this.comments = [];
+        })
+        .finally(() => {
+          this.commentLoading = false;
+        });
+    },
+    handleDelete() {
+      DialogPlugin.confirm({
+        header: '删除文章',
+        body: '确定删除该文章？',
+        onConfirm: () => {
+          this.$message.info('删除功能需后端提供 /post/delete 接口');
+        },
+      });
+    },
+    handleReply(row: any) {
+      this.$message.info('回复功能可在此处接入评论创建接口');
+    },
+    handleAudit(row: any) {
+      this.$message.info('审核功能需后端提供 /comment/audit 接口');
+    },
+    handleCommentDelete(row: any) {
+      DialogPlugin.confirm({
+        header: '删除评论',
+        body: '确定删除该条评论？',
+        onConfirm: () => {
+          this.$message.info('删除功能需后端提供 /comment/delete 接口');
+        },
+      });
+    },
+  },
+});
+</script>
+
+<style lang="less" scoped>
+@import '@/style/variables.less';
+
+.detail-base {
+  /deep/ .t-card {
+    padding: 8px;
+  }
+  /deep/ .t-card__title {
+    font-size: 20px;
+    font-weight: 500;
+    color: var(--td-text-color-primary);
+  }
+}
+
+.post-detail {
+  padding: 0;
+}
+
+.detail-card {
+  margin-bottom: 16px;
+}
+
+.info-row {
+  margin-bottom: 16px;
+  font-size: 14px;
+  line-height: 22px;
+
+  .label {
+    color: var(--td-text-color-secondary);
+    margin-right: 8px;
+  }
+  .value {
+    color: var(--td-text-color-primary);
+  }
+}
+
+.info-actions {
+  margin-top: 20px;
+  .t-button + .t-button {
+    margin-left: var(--td-comp-margin-s);
+  }
+}
+
+.content-preview {
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--td-text-color-primary);
+
+  &::v-deep img {
+    max-width: 100%;
+  }
+  &::v-deep pre {
+    overflow-x: auto;
+  }
+}
+
+.stat-item {
+  text-align: center;
+  padding: var(--td-comp-paddingTB-m) var(--td-comp-paddingLR-m);
+  background: var(--td-bg-color-container);
+  border-radius: var(--td-radius-default);
+
+  .stat-value {
+    font-size: 24px;
+    font-weight: 600;
+    color: var(--td-brand-color);
+    font-family: inherit;
+  }
+  .stat-label {
+    font-size: 14px;
+    color: var(--td-text-color-secondary);
+    margin-top: 4px;
+  }
+}
+
+.stat-tip,
+.empty-tip {
+  margin-top: 12px;
+  font-size: 14px;
+  color: var(--td-text-color-placeholder);
+}
+
+.comment-content {
+  display: inline-block;
+  max-width: 280px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 14px;
+}
+
+.t-button-link {
+  margin-right: var(--td-comp-margin-s);
+}
+</style>
