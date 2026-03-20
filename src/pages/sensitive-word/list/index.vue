@@ -17,8 +17,10 @@
         :data="data"
         row-key="id"
         :loading="dataLoading"
+        :pagination="pagination"
         :selected-row-keys="selectedRowKeys"
         @select-change="onSelectChange"
+        @page-change="onPageChange"
         :vertical-align="verticalAlign"
         :hover="hover"
       >
@@ -91,6 +93,11 @@ export default Vue.extend({
         word: [{ required: true, message: '请输入违禁词', type: 'error' }],
       },
       selectedRowKeys: [] as (string | number)[],
+      pagination: {
+        current: 1,
+        pageSize: 20,
+        total: 0,
+      },
       deleteVisible: false,
       deleteRows: null as { id: number; word?: string }[] | null,
       columns: [
@@ -124,17 +131,27 @@ export default Vue.extend({
   methods: {
     loadData() {
       this.dataLoading = true;
-      getSensitiveWordList()
+      getSensitiveWordList({ page: this.pagination.current, size: this.pagination.pageSize })
         .then((res: any) => {
-          this.data = Array.isArray(res) ? res : (res?.records || res?.list || []);
+          const list = Array.isArray(res) ? res : (res?.list || res?.records || []);
+          this.data = list;
+          const total = res?.total;
+          this.pagination.total = typeof total === 'number' ? total : list.length;
         })
         .catch(() => {
           this.$message.error('加载失败');
           this.data = [];
+          this.pagination.total = 0;
         })
         .finally(() => {
           this.dataLoading = false;
         });
+    },
+    onPageChange(pageInfo: { current: number; pageSize: number }) {
+      this.pagination.current = pageInfo.current;
+      this.pagination.pageSize = pageInfo.pageSize;
+      this.selectedRowKeys = [];
+      this.loadData();
     },
     showAddDialog() {
       this.addForm = { word: '', level: 2, enabled: true };

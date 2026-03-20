@@ -101,9 +101,9 @@ export function deleteTopic(id: number) {
   return request.delete(`${API_PREFIX}/topic/delete`, { params: { id } });
 }
 
-// 管理端：违禁词列表
-export function getSensitiveWordList() {
-  return request.get(`${API_PREFIX}/sensitive-word/admin/list`);
+// 管理端：违禁词列表（分页）
+export function getSensitiveWordList(params?: { page?: number; size?: number }) {
+  return request.get(`${API_PREFIX}/sensitive-word/admin/list`, { params: params || {} });
 }
 
 // 管理端：新增违禁词
