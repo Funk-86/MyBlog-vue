@@ -3,6 +3,7 @@
     <t-card class="list-card-container" :bordered="false">
       <t-row justify="space-between" align="middle" class="list-operation-row">
         <div class="left-operation-container">
+          <t-button theme="primary" @click="showAddUserDialog">添加用户</t-button>
           <t-button variant="outline" @click="loadData">刷新</t-button>
           <t-button variant="base" theme="warning" :disabled="!selectedRowKeys.length || actionLoading" @click="handleBatchBan">封禁</t-button>
           <t-button variant="base" theme="danger" :disabled="!selectedRowKeys.length || actionLoading" @click="handleBatchDelete">删除</t-button>
@@ -59,6 +60,32 @@
       </div>
 
       <t-dialog
+        header="添加用户"
+        :visible.sync="addUserVisible"
+        :confirm-btn="{ content: '确定', loading: addUserLoading }"
+        @confirm="onConfirmAddUser"
+        @close="addUserVisible = false"
+      >
+        <t-form ref="addUserForm" :data="addUserForm" :rules="addUserRules" label-width="80">
+          <t-form-item label="用户名" name="username">
+            <t-input v-model="addUserForm.username" placeholder="请输入用户名" clearable />
+          </t-form-item>
+          <t-form-item label="邮箱" name="email">
+            <t-input v-model="addUserForm.email" placeholder="请输入邮箱" clearable type="text" />
+          </t-form-item>
+          <t-form-item label="密码" name="password">
+            <t-input v-model="addUserForm.password" placeholder="请输入密码" clearable type="password" />
+          </t-form-item>
+          <t-form-item label="角色" name="role">
+            <t-radio-group v-model="addUserForm.role">
+              <t-radio :value="0">普通用户</t-radio>
+              <t-radio :value="1">管理员</t-radio>
+            </t-radio-group>
+          </t-form-item>
+        </t-form>
+      </t-dialog>
+
+      <t-dialog
         header="封禁用户"
         :visible.sync="banDialogVisible"
         :confirm-btn="{ content: '确定封禁' }"
@@ -83,7 +110,7 @@
 import Vue from 'vue';
 import { DialogPlugin } from 'tdesign-vue';
 import { SearchIcon } from 'tdesign-icons-vue';
-import { getUserList, updateUserStatus, type BanDuration } from '@/service/service-blog';
+import { getUserList, updateUserStatus, createUser, type BanDuration } from '@/service/service-blog';
 
 export default Vue.extend({
   name: 'AdminUserList',
@@ -116,6 +143,17 @@ export default Vue.extend({
       banDialogVisible: false,
       banDurationOption: '7_day' as string,
       pendingBanIds: [] as number[],
+      addUserVisible: false,
+      addUserLoading: false,
+      addUserForm: { username: '', email: '', password: '', role: 0 },
+      addUserRules: {
+        username: [{ required: true, message: '请输入用户名', trigger: 'blur' }],
+        email: [
+          { required: true, message: '请输入邮箱', trigger: 'blur' },
+          { type: 'email', message: '请输入正确的邮箱格式', trigger: 'blur' },
+        ],
+        password: [{ required: true, message: '请输入密码', trigger: 'blur' }],
+      },
     };
   },
   mounted() {
@@ -220,6 +258,46 @@ export default Vue.extend({
         body: `确定删除（注销）用户「${row.nickname || row.username}」？删除后账号将无法恢复。`,
         onConfirm: () => this.doUpdateStatus([Number(row.id)], 2, '删除成功'),
       });
+    },
+    showAddUserDialog() {
+      this.addUserForm = { username: '', email: '', password: '', role: 0 };
+      this.addUserVisible = true;
+      this.$nextTick(() => {
+        (this.$refs.addUserForm as any)?.clearValidate?.();
+      });
+    },
+    onConfirmAddUser() {
+      const form = this.$refs.addUserForm as any;
+      if (form?.validate) {
+        form
+          .validate()
+          .then(() => this.submitAddUser())
+          .catch(() => {});
+      } else {
+        this.submitAddUser();
+      }
+    },
+    submitAddUser() {
+      this.addUserLoading = true;
+      createUser({
+        username: this.addUserForm.username.trim(),
+        email: this.addUserForm.email.trim(),
+        password: this.addUserForm.password,
+        role: this.addUserForm.role,
+      })
+        .then((res: any) => {
+          if (res?.success === false) {
+            this.$message.error(res?.message || '添加失败');
+            return;
+          }
+          this.$message.success('添加成功');
+          this.addUserVisible = false;
+          this.loadData();
+        })
+        .catch(() => this.$message.error('添加失败'))
+        .finally(() => {
+          this.addUserLoading = false;
+        });
     },
   },
 });

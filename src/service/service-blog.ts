@@ -194,6 +194,16 @@ export function updateUserStatus(ids: number[], status: number, duration?: BanDu
   return request.put(`${API_PREFIX}/user/admin/status`, body);
 }
 
+/** 管理端：添加用户；role: 0=普通用户 1=管理员 */
+export function createUser(params: {
+  username: string;
+  email: string;
+  password: string;
+  role?: number;
+}) {
+  return request.post(`${API_PREFIX}/user/admin/add`, params);
+}
+
 // 用户：登录（账号=username 或 邮箱=email）
 export function login(account: string, password: string) {
   return request.post(`${API_PREFIX}/user/login`, null, {
