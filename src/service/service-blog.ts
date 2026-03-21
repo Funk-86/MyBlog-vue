@@ -6,7 +6,7 @@ import proxy from '@/config/host';
 
 const API_PREFIX = '';
 const env = (typeof import.meta !== 'undefined' && (import.meta as any).env?.MODE) || 'development';
-const API_BASE = (proxy as any)[env]?.API || 'https://myblog-tree.zeabur.app';
+const API_BASE = (proxy as any)[env]?.API || 'https://myblog-java.zeabur.app';
 
 /** 文章封面/图片上传接口 URL */
 export const UPLOAD_IMAGE_URL = `${API_BASE}/post/uploadImage`;
