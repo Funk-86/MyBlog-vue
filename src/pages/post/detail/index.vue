@@ -160,7 +160,7 @@ export default Vue.extend({
       }
       this.loading = true;
       this.error = '';
-      getPostDetail(id)
+      getPostDetailAdmin(id)
         .then((res: any) => {
           this.post = res || null;
           this.loadComments();
