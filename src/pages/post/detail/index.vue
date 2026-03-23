@@ -1,6 +1,7 @@
 <template>
   <div class="detail-base post-detail">
-    <t-loading :loading="loading" text="加载中...">
+    <div v-if="loading" class="loading-placeholder">加载中...</div>
+    <template v-else>
       <template v-if="post">
         <t-card title="文章信息" :bordered="false" class="detail-card">
           <div class="info-row">
@@ -160,7 +161,8 @@
       <template v-else-if="!loading && error">
         <t-alert theme="error" :message="error" />
       </template>
-    </t-loading>
+    </template>
+    <!-- 调试信息已移除（保持页面纯展示） -->
   </div>
 </template>
 
@@ -387,6 +389,9 @@ export default Vue.extend({
 .detail-base {
   /deep/ .t-card {
     padding: 8px;
+    background: var(--td-bg-color-container, #fff) !important;
+    border: 1px solid var(--td-component-border, rgba(0, 0, 0, 0.06)) !important;
+    box-sizing: border-box;
   }
   /deep/ .t-card__title {
     font-size: 20px;
@@ -546,5 +551,42 @@ export default Vue.extend({
 
 .t-button-link {
   margin-right: var(--td-comp-margin-s);
+}
+
+.debug-state {
+  padding: 8px 12px;
+  font-size: 12px;
+  color: #ff4d4f;
+  background: rgba(255, 77, 79, 0.05);
+  border: 1px dashed rgba(255, 77, 79, 0.4);
+  border-radius: 6px;
+  margin: 12px 0;
+}
+
+.plain-fallback {
+  padding: 10px 12px;
+  margin-bottom: 12px;
+  background: #f6ffed;
+  border: 1px solid rgba(82, 196, 26, 0.35);
+  border-radius: 6px;
+  color: #000;
+  font-size: 14px;
+  word-break: break-all;
+  white-space: pre-wrap;
+}
+
+.loading-placeholder {
+  padding: 20px 12px;
+  color: var(--td-text-color-secondary);
+  font-size: 14px;
+}
+
+.card-test {
+  margin: 12px 0;
+  padding: 8px 12px;
+  background: #fff7e6;
+  border: 1px solid rgba(250, 173, 20, 0.35);
+  border-radius: 6px;
+  font-size: 14px;
 }
 </style>

@@ -99,6 +99,7 @@ export default Vue.extend({
       confirmVisible: false,
       verticalAlign: 'top' as const,
       hover: true,
+      deleteSubmitting: false,
       columns: [
         { colKey: 'row-select', type: 'multiple', width: 64, fixed: 'left' },
         {
