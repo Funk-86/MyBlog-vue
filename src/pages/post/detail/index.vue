@@ -24,7 +24,7 @@
           </div>
           <div class="info-row">
             <span class="label">发布时间：</span>
-            <span class="value">{{ post.createdAt }}</span>
+            <span class="value">{{ publishTimeDisplay }}</span>
           </div>
           <div class="info-actions">
             <t-button theme="danger" variant="outline" size="small" @click="handleDelete">删除</t-button>
@@ -73,6 +73,9 @@
             :loading="commentLoading"
             :max-height="320"
           >
+            <template #createdAt="{ row }">
+              {{ formatPublishTimeBeijing(row.createdAt) }}
+            </template>
             <template #content="{ row }">
               <span class="comment-content">{{ row.content }}</span>
             </template>
@@ -102,6 +105,7 @@ import Vue from 'vue';
 import { DialogPlugin } from 'tdesign-vue';
 import { marked } from 'marked';
 import { getPostDetailAdmin, getCommentList, deletePostAdmin } from '@/service/service-blog';
+import { formatPublishTimeBeijing } from '@/utils/date';
 
 export default Vue.extend({
   name: 'PostDetail',
@@ -124,6 +128,9 @@ export default Vue.extend({
     };
   },
   computed: {
+    publishTimeDisplay(): string {
+      return formatPublishTimeBeijing(this.post?.createdAt);
+    },
     contentHtml(): string {
       const c = this.post?.content || '';
       if (!c.trim()) return '<p class="empty-tip">暂无内容</p>';
@@ -143,6 +150,7 @@ export default Vue.extend({
     this.loadPost();
   },
   methods: {
+    formatPublishTimeBeijing,
     loadPost() {
       const id = Number(this.$route.params.id);
       if (!id) {

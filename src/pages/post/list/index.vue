@@ -56,6 +56,9 @@
             <t-tag v-else-if="row.status === 2" theme="danger" variant="light">已删除</t-tag>
             <t-tag v-else-if="row.status === 3" theme="default" variant="light">已屏蔽</t-tag>
           </template>
+          <template #createdAt="{ row }">
+            {{ formatPublishTimeBeijing(row.createdAt) }}
+          </template>
           <template #op="slotProps">
             <a class="t-button-link" @click="handleViewDetail(slotProps.row)">详情</a>
             <a class="t-button-link" @click="handleClickDelete(slotProps)">删除</a>
@@ -78,6 +81,7 @@
 import Vue from 'vue';
 import { SearchIcon } from 'tdesign-icons-vue';
 import { getPostList, getCategoryList, deletePostAdmin } from '@/service/service-blog';
+import { formatPublishTimeBeijing } from '@/utils/date';
 import { prefix } from '@/config/global';
 
 export default Vue.extend({
@@ -112,7 +116,7 @@ export default Vue.extend({
         { title: '点赞', colKey: 'likeCount', width: 80 },
         { title: '评论数', colKey: 'commentCount', width: 80 },
         { title: '阅读量', colKey: 'viewCount', width: 80 },
-        { title: '发布时间', colKey: 'createdAt', width: 180 },
+        { title: '发布时间', colKey: 'createdAt', width: 200, cell: { col: 'createdAt' } },
         { title: '操作', colKey: 'op', width: 120, align: 'left', fixed: 'right', cell: { col: 'op' } },
       ],
       pagination: {
@@ -136,6 +140,7 @@ export default Vue.extend({
     this.loadData();
   },
   methods: {
+    formatPublishTimeBeijing,
     getContainer() {
       return document.querySelector(`.${prefix}-layout`) || document.body;
     },
@@ -198,7 +203,7 @@ export default Vue.extend({
       const rows = list.map((r: any) => [
         r.title, r.categoryName1 || '',
         r.status === 0 ? '正常' : r.status === 1 ? '审核中' : r.status === 2 ? '已删除' : '已屏蔽',
-        r.nickname || '', r.commentCount ?? 0, r.viewCount ?? 0, r.createdAt || '',
+        r.nickname || '', r.commentCount ?? 0, r.viewCount ?? 0, formatPublishTimeBeijing(r.createdAt) || '',
       ]);
       const csv = [headers.join(','), ...rows.map((row: any[]) => row.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(','))].join('\n');
       const blob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8' });

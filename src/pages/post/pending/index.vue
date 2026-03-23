@@ -18,6 +18,9 @@
           :loading="dataLoading"
           @page-change="onPageChange"
         >
+          <template #createdAt="{ row }">
+            {{ formatPublishTimeBeijing(row.createdAt) }}
+          </template>
           <template #status="{ row }">
             <t-tag v-if="row.status === 1" theme="warning" variant="light">审核中</t-tag>
             <t-tag v-else-if="row.status === 3" theme="danger" variant="light">AI已拦截</t-tag>
@@ -41,6 +44,7 @@
 <script lang="ts">
 import Vue from 'vue';
 import { getPostPendingList, approvePost, rejectPost } from '@/service/service-blog';
+import { formatPublishTimeBeijing } from '@/utils/date';
 
 export default Vue.extend({
   name: 'PostPending',
@@ -65,7 +69,7 @@ export default Vue.extend({
         { title: '点赞', colKey: 'likeCount', width: 70 },
         { title: '评论数', colKey: 'commentCount', width: 80 },
         { title: '阅读量', colKey: 'viewCount', width: 80 },
-        { title: '发布时间', colKey: 'createdAt', width: 180 },
+        { title: '发布时间', colKey: 'createdAt', width: 200, cell: { col: 'createdAt' } },
         { title: '操作', colKey: 'op', width: 160, cell: { col: 'op' } },
       ],
       pagination: {
@@ -79,6 +83,7 @@ export default Vue.extend({
     this.loadData();
   },
   methods: {
+    formatPublishTimeBeijing,
     loadData() {
       this.dataLoading = true;
       // 使用专门的待审接口，由后端返回 status=1 或 3 的帖子
