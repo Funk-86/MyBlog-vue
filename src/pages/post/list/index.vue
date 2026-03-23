@@ -67,6 +67,7 @@
       header="确认删除当前所选文章？"
       :body="confirmBody"
       :visible.sync="confirmVisible"
+      :confirm-btn="{ content: '删除', theme: 'danger', loading: deleteSubmitting }"
       @confirm="onConfirmDelete"
       :onCancel="onCancel"
     />
@@ -76,7 +77,7 @@
 <script lang="ts">
 import Vue from 'vue';
 import { SearchIcon } from 'tdesign-icons-vue';
-import { getPostList, getCategoryList } from '@/service/service-blog';
+import { getPostList, getCategoryList, deletePostAdmin } from '@/service/service-blog';
 import { prefix } from '@/config/global';
 
 export default Vue.extend({
@@ -214,22 +215,24 @@ export default Vue.extend({
       this.confirmVisible = true;
     },
     onConfirmDelete() {
-      if (!this.deleteRow) return;
-      const idx = this.data.findIndex((r: any) => r.id === this.deleteRow!.id);
-      if (idx > -1) {
-        this.data.splice(idx, 1);
-        this.pagination.total = this.data.length;
-        const selIdx = this.selectedRowKeys.indexOf(this.deleteRow!.id);
-        if (selIdx > -1) {
-          this.selectedRowKeys.splice(selIdx, 1);
-        }
-      }
-      this.confirmVisible = false;
-      this.$message.success('删除成功');
-      this.resetDelete();
-      // 删除功能需后端提供 /post/delete 接口，当前仅前端移除以展示动画
+      if (!this.deleteRow || this.deleteSubmitting) return;
+      this.deleteSubmitting = true;
+      deletePostAdmin(this.deleteRow.id)
+        .then(() => {
+          this.$message.success('删除成功');
+          this.confirmVisible = false;
+          this.resetDelete();
+          this.loadData();
+        })
+        .catch((e: any) => {
+          this.$message.error('删除失败：' + (e?.message || e?.msg || '请检查网络或后端'));
+        })
+        .finally(() => {
+          this.deleteSubmitting = false;
+        });
     },
     onCancel() {
+      this.deleteSubmitting = false;
       this.resetDelete();
     },
     resetDelete() {

@@ -23,6 +23,19 @@ export function getPostDetail(id: number) {
   return request.get(`${API_PREFIX}/post/detail`, { params: { id } });
 }
 
+/** 管理端文章详情（不计浏览量） */
+export function getPostDetailAdmin(id: number) {
+  return request.get(`${API_PREFIX}/post/admin/detail`, { params: { id } });
+}
+
+/** 管理端删除文章（软删除，不校验作者） */
+export function deletePostAdmin(postId: number) {
+  return request.post(`${API_PREFIX}/post/admin/delete`, null, {
+    params: { postId },
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+  });
+}
+
 // 管理端：待审核帖子列表
 export function getPostPendingList(params?: { page?: number; size?: number }) {
   return request.get(`${API_PREFIX}/post/admin/pending`, { params: params || {} });

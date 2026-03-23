@@ -101,7 +101,7 @@
 import Vue from 'vue';
 import { DialogPlugin } from 'tdesign-vue';
 import { marked } from 'marked';
-import { getPostDetail, getCommentList } from '@/service/service-blog';
+import { getPostDetailAdmin, getCommentList, deletePostAdmin } from '@/service/service-blog';
 
 export default Vue.extend({
   name: 'PostDetail',
@@ -181,12 +181,24 @@ export default Vue.extend({
         });
     },
     handleDelete() {
+      const id = this.post?.id;
+      if (!id) return;
       DialogPlugin.confirm({
         header: '删除文章',
-        body: '确定删除该文章？',
-        onConfirm: () => {
-          this.$message.info('删除功能需后端提供 /post/delete 接口');
-        },
+        body: '确定删除该文章？删除后前台将不再展示（软删除）。',
+        onConfirm: () =>
+          new Promise<void>((resolve, reject) => {
+            deletePostAdmin(id)
+              .then(() => {
+                this.$message.success('已删除');
+                this.$router.replace('/post/list');
+                resolve();
+              })
+              .catch((e: any) => {
+                this.$message.error('删除失败：' + (e?.message || e?.msg || ''));
+                reject(e);
+              });
+          }),
       });
     },
     handleReply(row: any) {

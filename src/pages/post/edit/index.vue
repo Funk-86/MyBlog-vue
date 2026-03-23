@@ -155,7 +155,7 @@
 import Vue from 'vue';
 import { marked } from 'marked';
 import request from '@/utils/request';
-import { getCategoryList, createPost, getPostDetail, UPLOAD_IMAGE_URL } from '@/service/service-blog';
+import { getCategoryList, createPost, getPostDetailAdmin, UPLOAD_IMAGE_URL } from '@/service/service-blog';
 
 const INITIAL_DATA = {
   userId: 1,
@@ -243,7 +243,7 @@ export default Vue.extend({
     },
     loadPost() {
       if (!this.postId) return;
-      getPostDetail(this.postId)
+      getPostDetailAdmin(this.postId)
         .then((res: any) => {
           if (res) {
             this.formData.title = res.title || '';
