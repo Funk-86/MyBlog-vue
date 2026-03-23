@@ -87,12 +87,24 @@
             <div v-else class="empty-tip">暂无图片</div>
           </div>
           <div v-else-if="post.type === 2" class="media-block">
+            <div v-if="post.firstVideoUrl" class="video-player-wrap">
+              <video
+                class="video-player"
+                :src="resolveMediaUrl(post.firstVideoUrl)"
+                :poster="post.firstVideoCoverUrl ? resolveMediaUrl(post.firstVideoCoverUrl) : ''"
+                controls
+                preload="metadata"
+              ></video>
+              <div class="video-meta">
+                <span>时长：{{ post.firstVideoDuration || 0 }}s</span>
+              </div>
+            </div>
             <div v-if="post.firstVideoCoverUrl" class="video-cover">
               <img class="video-cover-img" :src="resolveMediaUrl(post.firstVideoCoverUrl)" />
               <div class="video-mask">▶</div>
               <div class="video-duration">时长：{{ post.firstVideoDuration || 0 }}s</div>
             </div>
-            <div v-else class="empty-tip">暂无视频封面</div>
+            <div v-if="!post.firstVideoUrl && !post.firstVideoCoverUrl" class="empty-tip">暂无视频资源（URL/封面均为空）</div>
           </div>
           <div v-else class="empty-tip">无媒体</div>
         </t-card>
@@ -267,7 +279,12 @@ export default Vue.extend({
             this.error = '未找到该帖子';
             return;
           }
-          this.post = res;
+          // 兼容后端可能返回 snake_case 字段，统一成前端用的 camelCase
+          this.post = {
+            ...res,
+            firstVideoUrl: res.firstVideoUrl || res.first_video_url || '',
+            firstVideoCoverUrl: res.firstVideoCoverUrl || res.first_video_cover_url || '',
+          };
           this.loadComments();
         })
         .catch(() => {
@@ -504,6 +521,7 @@ export default Vue.extend({
   max-width: 100%;
   border-radius: var(--td-radius-default);
   overflow: hidden;
+  margin-top: 10px;
 }
 
 .video-cover-img {
@@ -538,6 +556,29 @@ export default Vue.extend({
   color: #fff;
   border-radius: 999px;
   font-size: 12px;
+}
+
+.video-player-wrap {
+  width: 640px;
+  max-width: 100%;
+  border: 1px solid var(--td-component-border, rgba(0, 0, 0, 0.06));
+  border-radius: var(--td-radius-default);
+  overflow: hidden;
+  background: #000;
+}
+
+.video-player {
+  width: 100%;
+  max-height: 460px;
+  display: block;
+  background: #000;
+}
+
+.video-meta {
+  padding: 8px 10px;
+  font-size: 12px;
+  color: var(--td-text-color-secondary);
+  background: var(--td-bg-color-container, #fff);
 }
 
 .comment-content {
