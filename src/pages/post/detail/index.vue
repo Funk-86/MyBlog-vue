@@ -26,7 +26,7 @@
             <span class="label">发布时间：</span>
             <span class="value">{{ publishTimeDisplay }}</span>
           </div>
-          <div v-if="post?.topicNames" class="info-row">
+          <div v-if="post && post.topicNames" class="info-row">
             <span class="label">话题：</span>
             <span class="value">
               <t-tag
@@ -191,6 +191,12 @@ export default Vue.extend({
         { title: '操作', colKey: 'op', width: 150, cell: { col: 'op' } },
       ],
     };
+  },
+  // 捕获渲染/计算阶段的运行时错误，避免“白屏但没有任何提示”
+  errorCaptured(err: any) {
+    this.loading = false;
+    this.error = '渲染失败：' + (err?.message || err);
+    return false;
   },
   computed: {
     publishTimeDisplay(): string {
