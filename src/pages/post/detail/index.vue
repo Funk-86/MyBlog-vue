@@ -154,6 +154,9 @@
           <p v-if="comments.length === 0 && !commentLoading" class="empty-tip">暂无评论</p>
         </t-card>
       </template>
+      <template v-else-if="!loading && !error">
+        <t-alert theme="warning" message="未找到该帖子或接口返回为空" />
+      </template>
       <template v-else-if="!loading && error">
         <t-alert theme="error" :message="error" />
       </template>
@@ -251,7 +254,12 @@ export default Vue.extend({
       this.error = '';
       getPostDetailAdmin(id)
         .then((res: any) => {
-          this.post = res || null;
+          if (!res || (!res.id && res.id !== 0)) {
+            this.post = null;
+            this.error = '未找到该帖子';
+            return;
+          }
+          this.post = res;
           this.loadComments();
         })
         .catch(() => {
