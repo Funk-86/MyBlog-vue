@@ -26,13 +26,74 @@
             <span class="label">发布时间：</span>
             <span class="value">{{ publishTimeDisplay }}</span>
           </div>
+          <div v-if="post?.topicNames" class="info-row">
+            <span class="label">话题：</span>
+            <span class="value">
+              <t-tag
+                v-for="t in postTopics"
+                :key="t"
+                theme="default"
+                variant="light"
+                size="small"
+                class="topic-tag"
+              >
+                {{ t }}
+              </t-tag>
+            </span>
+          </div>
+          <div class="info-row">
+            <span class="label">可见范围：</span>
+            <span class="value">{{ post.visibility === 1 ? '仅自己' : '所有人' }}</span>
+          </div>
           <div class="info-actions">
+            <t-button
+              v-if="post.status === 1"
+              theme="success"
+              variant="outline"
+              size="small"
+              @click="handleApprove"
+            >
+              通过
+            </t-button>
+            <t-button
+              v-if="post.status === 1"
+              theme="danger"
+              variant="outline"
+              size="small"
+              @click="handleReject"
+            >
+              拒绝
+            </t-button>
             <t-button theme="danger" variant="outline" size="small" @click="handleDelete">删除</t-button>
           </div>
         </t-card>
 
         <t-card title="内容预览" :bordered="false" class="detail-card">
           <div class="content-preview" v-html="contentHtml"></div>
+        </t-card>
+
+        <t-card title="媒体内容" :bordered="false" class="detail-card">
+          <div v-if="post.type === 1" class="media-block">
+            <div v-if="postImages.length" class="media-grid">
+              <div
+                v-for="(img, idx) in postImages.slice(0, 9)"
+                :key="idx"
+                class="media-item"
+              >
+                <img class="media-img" :src="resolveMediaUrl(img)" />
+              </div>
+            </div>
+            <div v-else class="empty-tip">暂无图片</div>
+          </div>
+          <div v-else-if="post.type === 2" class="media-block">
+            <div v-if="post.firstVideoCoverUrl" class="video-cover">
+              <img class="video-cover-img" :src="resolveMediaUrl(post.firstVideoCoverUrl)" />
+              <div class="video-mask">▶</div>
+              <div class="video-duration">时长：{{ post.firstVideoDuration || 0 }}s</div>
+            </div>
+            <div v-else class="empty-tip">暂无视频封面</div>
+          </div>
+          <div v-else class="empty-tip">无媒体</div>
         </t-card>
 
         <t-card title="数据统计" :bordered="false" class="detail-card">
@@ -104,7 +165,8 @@
 import Vue from 'vue';
 import { DialogPlugin } from 'tdesign-vue';
 import { marked } from 'marked';
-import { getPostDetailAdmin, getCommentList, deletePostAdmin } from '@/service/service-blog';
+import request from '@/utils/request';
+import { getPostDetailAdmin, getCommentList, deletePostAdmin, approvePost, rejectPost } from '@/service/service-blog';
 import { formatPublishTimeBeijing } from '@/utils/date';
 
 export default Vue.extend({
@@ -131,6 +193,25 @@ export default Vue.extend({
     publishTimeDisplay(): string {
       return formatPublishTimeBeijing(this.post?.createdAt);
     },
+    postImages(): string[] {
+      const s = this.post?.imageUrls;
+      if (!s) return [];
+      if (Array.isArray(s)) return s.filter(Boolean);
+      return String(s)
+        .split(',')
+        .map((x) => x.trim())
+        .filter(Boolean);
+    },
+    postTopics(): string[] {
+      const s = this.post?.topicNames;
+      if (!s) return [];
+      if (Array.isArray(s)) return s.filter(Boolean);
+      return String(s)
+        .split(',')
+        .map((x) => x.trim())
+        .filter(Boolean)
+        .slice(0, 10);
+    },
     contentHtml(): string {
       const c = this.post?.content || '';
       if (!c.trim()) return '<p class="empty-tip">暂无内容</p>';
@@ -151,6 +232,14 @@ export default Vue.extend({
   },
   methods: {
     formatPublishTimeBeijing,
+    resolveMediaUrl(raw: string) {
+      if (!raw) return '';
+      if (raw.startsWith('http://') || raw.startsWith('https://')) return raw;
+      const base = (request.defaults as any)?.baseURL || '';
+      if (!base) return raw;
+      if (raw.startsWith('/')) return `${base}${raw}`;
+      return `${base}/${raw}`;
+    },
     loadPost() {
       const id = Number(this.$route.params.id);
       if (!id) {
@@ -204,6 +293,56 @@ export default Vue.extend({
               })
               .catch((e: any) => {
                 this.$message.error('删除失败：' + (e?.message || e?.msg || ''));
+                reject(e);
+              });
+          }),
+      });
+    },
+    handleApprove() {
+      const id = this.post?.id;
+      if (!id) return;
+      if (this.post?.status !== 1) {
+        this.$message.warning('只有审核中（status=1）的帖子可以通过');
+        return;
+      }
+      DialogPlugin.confirm({
+        header: '通过审核',
+        body: '确认将该帖子通过审核并发布？',
+        onConfirm: () =>
+          new Promise<void>((resolve, reject) => {
+            approvePost(id)
+              .then(() => {
+                this.$message.success('已通过审核');
+                this.$router.replace('/post/pending');
+                resolve();
+              })
+              .catch((e: any) => {
+                this.$message.error('操作失败：' + (e?.message || '请检查后端服务'));
+                reject(e);
+              });
+          }),
+      });
+    },
+    handleReject() {
+      const id = this.post?.id;
+      if (!id) return;
+      if (this.post?.status !== 1) {
+        this.$message.warning('只有审核中（status=1）的帖子可以拒绝');
+        return;
+      }
+      DialogPlugin.confirm({
+        header: '拒绝审核',
+        body: '确认拒绝该帖子？',
+        onConfirm: () =>
+          new Promise<void>((resolve, reject) => {
+            rejectPost(id)
+              .then(() => {
+                this.$message.success('已拒绝该帖子');
+                this.$router.replace('/post/pending');
+                resolve();
+              })
+              .catch((e: any) => {
+                this.$message.error('操作失败：' + (e?.message || '请检查后端服务'));
                 reject(e);
               });
           }),
@@ -270,6 +409,10 @@ export default Vue.extend({
     margin-left: var(--td-comp-margin-s);
   }
 }
+.topic-tag {
+  margin-right: 8px;
+  margin-bottom: 8px;
+}
 
 .content-preview {
   font-size: 14px;
@@ -308,6 +451,74 @@ export default Vue.extend({
   margin-top: 12px;
   font-size: 14px;
   color: var(--td-text-color-placeholder);
+}
+
+.media-block {
+  min-height: 120px;
+}
+
+.media-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.media-item {
+  width: 160px;
+  height: 100px;
+  border-radius: var(--td-radius-default);
+  overflow: hidden;
+  background: rgba(0, 0, 0, 0.03);
+  border: 1px solid rgba(0, 0, 0, 0.04);
+}
+
+.media-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.video-cover {
+  position: relative;
+  width: 320px;
+  max-width: 100%;
+  border-radius: var(--td-radius-default);
+  overflow: hidden;
+}
+
+.video-cover-img {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+
+.video-mask {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 52px;
+  height: 52px;
+  border-radius: 26px;
+  background: rgba(0, 0, 0, 0.35);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  backdrop-filter: blur(3px);
+}
+
+.video-duration {
+  position: absolute;
+  bottom: 10px;
+  right: 10px;
+  padding: 6px 10px;
+  background: rgba(0, 0, 0, 0.35);
+  color: #fff;
+  border-radius: 999px;
+  font-size: 12px;
 }
 
 .comment-content {
