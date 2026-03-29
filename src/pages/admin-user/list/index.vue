@@ -50,6 +50,7 @@
             <t-tag v-else theme="default" variant="light" size="small">注销</t-tag>
           </template>
           <template #op="{ row }">
+            <a class="t-button-link" @click="handleEdit(row)">更改</a>
             <template v-if="row.status === 0">
               <a class="t-button-link t-link-warning" @click="handleBan(row)">封禁</a>
             </template>
@@ -88,6 +89,39 @@
       </t-dialog>
 
       <t-dialog
+        header="更改用户信息"
+        :visible.sync="editUserVisible"
+        width="520px"
+        :confirm-btn="{ content: '保存', loading: editUserLoading }"
+        @confirm="onConfirmEditUser"
+        @close="editUserVisible = false"
+      >
+        <t-form ref="editUserForm" :data="editUserForm" :rules="editUserRules" label-width="80">
+          <t-form-item label="用户名" name="username">
+            <t-input v-model="editUserForm.username" placeholder="请输入用户名" clearable />
+          </t-form-item>
+          <t-form-item label="邮箱" name="email">
+            <t-input v-model="editUserForm.email" placeholder="请输入邮箱" clearable type="text" />
+          </t-form-item>
+          <t-form-item label="昵称" name="nickname">
+            <t-input v-model="editUserForm.nickname" placeholder="选填" clearable />
+          </t-form-item>
+          <t-form-item label="简介" name="bio">
+            <t-textarea v-model="editUserForm.bio" placeholder="选填" :autosize="{ minRows: 2, maxRows: 5 }" />
+          </t-form-item>
+          <t-form-item label="新密码" name="password">
+            <t-input v-model="editUserForm.password" placeholder="留空则不修改密码" clearable type="password" />
+          </t-form-item>
+          <t-form-item label="角色" name="role">
+            <t-radio-group v-model="editUserForm.role">
+              <t-radio :value="0">普通用户</t-radio>
+              <t-radio :value="1">管理员</t-radio>
+            </t-radio-group>
+          </t-form-item>
+        </t-form>
+      </t-dialog>
+
+      <t-dialog
         header="封禁用户"
         :visible.sync="banDialogVisible"
         :confirm-btn="{ content: '确定封禁' }"
@@ -112,7 +146,7 @@
 import Vue from 'vue';
 import { DialogPlugin } from 'tdesign-vue';
 import { SearchIcon } from 'tdesign-icons-vue';
-import { getUserList, updateUserStatus, createUser, type BanDuration } from '@/service/service-blog';
+import { getUserList, updateUserStatus, createUser, updateUserAdmin, type BanDuration } from '@/service/service-blog';
 import { prefix } from '@/config/global';
 
 export default Vue.extend({
@@ -136,7 +170,7 @@ export default Vue.extend({
         { title: '状态', colKey: 'status', width: 180, ellipsis: true, cell: { col: 'status' } },
         { title: '简介', colKey: 'bio', ellipsis: true, minWidth: 150 },
         { title: '注册时间', colKey: 'createdAt', width: 180 },
-        { title: '操作', colKey: 'op', width: 140, fixed: 'right', cell: { col: 'op' } },
+        { title: '操作', colKey: 'op', width: 200, fixed: 'right', cell: { col: 'op' } },
       ],
       pagination: {
         current: 1,
@@ -156,6 +190,24 @@ export default Vue.extend({
           { type: 'email', message: '请输入正确的邮箱格式', trigger: 'blur' },
         ],
         password: [{ required: true, message: '请输入密码', trigger: 'blur' }],
+      },
+      editUserVisible: false,
+      editUserLoading: false,
+      editUserForm: {
+        id: 0 as number,
+        username: '',
+        email: '',
+        nickname: '',
+        bio: '',
+        password: '',
+        role: 0,
+      },
+      editUserRules: {
+        username: [{ required: true, message: '请输入用户名', trigger: 'blur' }],
+        email: [
+          { required: true, message: '请输入邮箱', trigger: 'blur' },
+          { type: 'email', message: '请输入正确的邮箱格式', trigger: 'blur' },
+        ],
       },
     };
   },
@@ -271,6 +323,69 @@ export default Vue.extend({
         onConfirm: () => this.doUpdateStatus([Number(row.id)], 2, '删除成功'),
       });
     },
+    handleEdit(row: any) {
+      this.editUserForm = {
+        id: Number(row.id),
+        username: row.username || '',
+        email: row.email || '',
+        nickname: row.nickname != null ? String(row.nickname) : '',
+        bio: row.bio != null ? String(row.bio) : '',
+        password: '',
+        role: row.role === 1 ? 1 : 0,
+      };
+      this.editUserVisible = true;
+      this.$nextTick(() => {
+        (this.$refs.editUserForm as any)?.clearValidate?.();
+      });
+    },
+    onConfirmEditUser() {
+      const form = this.$refs.editUserForm as any;
+      if (form?.validate) {
+        form
+          .validate()
+          .then(() => this.submitEditUser())
+          .catch(() => {});
+      } else {
+        this.submitEditUser();
+      }
+    },
+    submitEditUser() {
+      const f = this.editUserForm;
+      if (!f.id) return;
+      this.editUserLoading = true;
+      const payload: {
+        id: number;
+        username: string;
+        email: string;
+        role: number;
+        nickname?: string;
+        bio?: string;
+        password?: string;
+      } = {
+        id: f.id,
+        username: f.username.trim(),
+        email: f.email.trim(),
+        role: f.role,
+        nickname: (f.nickname || '').trim() || undefined,
+        bio: (f.bio || '').trim() || undefined,
+      };
+      const pwd = (f.password || '').trim();
+      if (pwd) payload.password = pwd;
+      updateUserAdmin(payload)
+        .then((res: any) => {
+          if (res?.success === false) {
+            this.$message.error(res?.message || '保存失败');
+            return;
+          }
+          this.$message.success('保存成功');
+          this.editUserVisible = false;
+          this.loadData();
+        })
+        .catch(() => this.$message.error('保存失败'))
+        .finally(() => {
+          this.editUserLoading = false;
+        });
+    },
     showAddUserDialog() {
       this.addUserForm = { username: '', email: '', password: '', role: 0 };
       this.addUserVisible = true;
@@ -337,6 +452,10 @@ export default Vue.extend({
 
 .search-input {
   width: 360px;
+}
+
+.t-button-link {
+  margin-right: var(--td-comp-margin-s);
 }
 
 .t-link-warning {

@@ -250,6 +250,19 @@ export function createUser(params: {
   return request.post(`${API_PREFIX}/user/admin/add`, params);
 }
 
+/** 管理端：更新用户；password 不传或空字符串表示不修改密码 */
+export function updateUserAdmin(params: {
+  id: number;
+  username: string;
+  email: string;
+  role: number;
+  nickname?: string;
+  bio?: string;
+  password?: string;
+}) {
+  return request.put(`${API_PREFIX}/user/admin/update`, params);
+}
+
 // 用户：登录（账号=username 或 邮箱=email）
 export function login(account: string, password: string) {
   return request.post(`${API_PREFIX}/user/login`, null, {
