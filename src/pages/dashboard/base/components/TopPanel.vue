@@ -143,10 +143,26 @@ export default {
           if (res && typeof res === 'object') {
             this.panelList[0].number = res.postCount ?? '-';
             this.panelList[1].number = res.commentCount ?? '-';
-            this.panelList[2].number = res.todayViewCount ?? res.totalViewCount ?? '-';
+            const todayPv = Number(res.todayViewCount);
+            const yestPv = Number(res.yesterdayViewCount);
+            this.panelList[2].number =
+              Number.isFinite(todayPv) ? todayPv : res.totalViewCount ?? '-';
             this.panelList[3].number = res.pendingPostCount ?? '0';
             if (res.yesterdayPostCount !== undefined) this.panelList[0].upTrend = `昨日 +${res.yesterdayPostCount}`;
             if (res.yesterdayCommentCount !== undefined) this.panelList[1].downTrend = `昨日 +${res.yesterdayCommentCount}`;
+            if (Number.isFinite(todayPv) && Number.isFinite(yestPv)) {
+              const diff = todayPv - yestPv;
+              if (diff > 0) {
+                this.panelList[2].upTrend = `较昨日 +${diff}`;
+                this.panelList[2].downTrend = undefined;
+              } else if (diff < 0) {
+                this.panelList[2].downTrend = `较昨日 ${diff}`;
+                this.panelList[2].upTrend = undefined;
+              } else {
+                this.panelList[2].upTrend = '较昨日 持平';
+                this.panelList[2].downTrend = undefined;
+              }
+            }
           }
         })
         .catch(() => {});
