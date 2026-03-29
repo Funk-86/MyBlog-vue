@@ -18,6 +18,15 @@
             <t-option v-for="c in categoryOptions" :key="c.id" :value="c.id" :label="c.name" />
           </t-select>
           <t-select
+            v-model="filterStatus"
+            placeholder="按状态筛选"
+            clearable
+            class="status-select"
+            @change="onSearch"
+          >
+            <t-option v-for="s in statusOptions" :key="s.value" :value="s.value" :label="s.label" />
+          </t-select>
+          <t-select
             v-model="filterYear"
             placeholder="按年筛选"
             clearable
@@ -123,6 +132,7 @@ export default Vue.extend({
       data: [],
       searchValue: '',
       filterCategory: undefined,
+      filterStatus: undefined as number | undefined,
       filterYear: undefined as number | undefined,
       filterMonth: undefined as number | undefined,
       categoryOptions: [],
@@ -176,6 +186,14 @@ export default Vue.extend({
         label: `${i + 1}月`,
       }));
     },
+    statusOptions(): { value: number; label: string }[] {
+      return [
+        { value: 0, label: '正常' },
+        { value: 1, label: '审核中' },
+        { value: 2, label: '已删除' },
+        { value: 3, label: '已屏蔽' },
+      ];
+    },
     confirmBody(): string {
       if (!this.deleteRow) return '';
       return `删除后，${this.deleteRow.title || '该文章'}的所有信息将被清空，且无法恢复`;
@@ -208,6 +226,7 @@ export default Vue.extend({
       getPostList({
         page: this.pagination.current,
         size: this.pagination.pageSize,
+        status: this.filterStatus,
         categoryId: this.filterCategory,
         year: this.filterYear,
         month: this.filterYear != null ? this.filterMonth : undefined,
@@ -359,6 +378,7 @@ export default Vue.extend({
   }
 
   .category-select,
+  .status-select,
   .year-select,
   .month-select {
     width: 130px;

@@ -15,12 +15,14 @@ export const UPLOAD_IMAGE_URL = `${API_BASE}/post/uploadImage`;
 export function getPostList(params?: {
   page?: number;
   size?: number;
+  status?: number;
   categoryId?: number;
   year?: number;
   month?: number;
   keyword?: string;
 }) {
   const p: Record<string, unknown> = { ...params };
+  if (p.status == null || p.status === '') delete p.status;
   if (p.categoryId == null || p.categoryId === '') delete p.categoryId;
   if (p.year == null || p.year === '') delete p.year;
   if (p.month == null || p.month === '') delete p.month;
