@@ -3,6 +3,7 @@
     <t-row justify="space-between" align="middle" class="list-operation-row">
       <div class="left-operation-container">
         <t-button theme="primary" @click="showAddDialog">添加违禁词</t-button>
+        <t-button variant="outline" theme="default" @click="showImportDialog">从 TXT 导入</t-button>
         <t-button variant="base" theme="default" :disabled="!selectedRowKeys.length" @click="handleBatchDelete">
           删除
         </t-button>
@@ -65,6 +66,42 @@
     </t-dialog>
 
     <t-dialog
+      header="从 TXT 导入违禁词"
+      :visible.sync="importVisible"
+      :confirm-btn="{ content: '开始导入', loading: importLoading }"
+      @confirm="onConfirmImport"
+      :on-cancel="closeImportDialog"
+    >
+      <p class="import-hint">
+        请上传 UTF-8 编码的 .txt 文件。每行一个违禁词，或一行内用英文逗号、中文逗号、分号分隔多个词。以 # 开头的行为注释。单词最多 100
+        字，单次最多处理约 10000 条。
+      </p>
+      <t-form :data="importForm" label-width="80">
+        <t-form-item label="级别">
+          <t-select v-model="importForm.level" placeholder="请选择级别">
+            <t-option :value="1" label="提示" />
+            <t-option :value="2" label="拦截" />
+            <t-option :value="3" label="人工审核" />
+          </t-select>
+        </t-form-item>
+        <t-form-item label="状态">
+          <t-switch v-model="importForm.enabled" :label="['启用', '禁用']" />
+        </t-form-item>
+        <t-form-item label="文件">
+          <t-button variant="outline" @click="triggerTxtFile">选择文件</t-button>
+          <input
+            ref="txtFileInput"
+            type="file"
+            accept=".txt,text/plain"
+            class="import-file-input"
+            @change="onImportFileChange"
+          />
+          <span v-if="importFileName" class="import-file-name">{{ importFileName }}</span>
+        </t-form-item>
+      </t-form>
+    </t-dialog>
+
+    <t-dialog
       :header="deleteConfirmHeader"
       :body="deleteConfirmBody"
       :visible.sync="deleteVisible"
@@ -76,7 +113,12 @@
 
 <script lang="ts">
 import Vue from 'vue';
-import { getSensitiveWordList, createSensitiveWord, deleteSensitiveWord } from '@/service/service-blog';
+import {
+  getSensitiveWordList,
+  createSensitiveWord,
+  deleteSensitiveWord,
+  importSensitiveWordsFromTxt,
+} from '@/service/service-blog';
 
 export default Vue.extend({
   name: 'SensitiveWordList',
@@ -98,6 +140,11 @@ export default Vue.extend({
         pageSize: 20,
         total: 0,
       },
+      importVisible: false,
+      importLoading: false,
+      importForm: { level: 2, enabled: true },
+      importFile: null as File | null,
+      importFileName: '',
       deleteVisible: false,
       deleteRows: null as { id: number; word?: string }[] | null,
       columns: [
@@ -156,6 +203,59 @@ export default Vue.extend({
     showAddDialog() {
       this.addForm = { word: '', level: 2, enabled: true };
       this.addVisible = true;
+    },
+    showImportDialog() {
+      this.importForm = { level: 2, enabled: true };
+      this.importFile = null;
+      this.importFileName = '';
+      this.importVisible = true;
+      this.$nextTick(() => {
+        const el = this.$refs.txtFileInput as HTMLInputElement | undefined;
+        if (el) el.value = '';
+      });
+    },
+    triggerTxtFile() {
+      const el = this.$refs.txtFileInput as HTMLInputElement | undefined;
+      el?.click();
+    },
+    onImportFileChange(e: Event) {
+      const input = e.target as HTMLInputElement;
+      const f = input.files && input.files[0];
+      this.importFile = f || null;
+      this.importFileName = f ? f.name : '';
+    },
+    closeImportDialog() {
+      this.importVisible = false;
+      this.importFile = null;
+      this.importFileName = '';
+      const el = this.$refs.txtFileInput as HTMLInputElement | undefined;
+      if (el) el.value = '';
+    },
+    onConfirmImport() {
+      if (!this.importFile) {
+        this.$message.warning('请先选择 txt 文件');
+        return;
+      }
+      const fd = new FormData();
+      fd.append('file', this.importFile);
+      fd.append('level', String(this.importForm.level || 2));
+      fd.append('status', this.importForm.enabled ? '0' : '1');
+      this.importLoading = true;
+      importSensitiveWordsFromTxt(fd)
+        .then((res: any) => {
+          const imp = typeof res?.imported === 'number' ? res.imported : 0;
+          const dup = typeof res?.duplicates === 'number' ? res.duplicates : 0;
+          const inv = typeof res?.invalid === 'number' ? res.invalid : 0;
+          this.$message.success(`导入完成：新增 ${imp} 条，重复跳过 ${dup} 条，无效 ${inv} 条`);
+          this.closeImportDialog();
+          this.loadData();
+        })
+        .catch((e: any) => {
+          this.$message.error(e?.response?.data?.message || e?.message || '导入失败');
+        })
+        .finally(() => {
+          this.importLoading = false;
+        });
     },
     onSelectChange(keys: (string | number)[]) {
       this.selectedRowKeys = keys;
@@ -248,6 +348,23 @@ export default Vue.extend({
 
 .t-link-danger {
   color: var(--td-error-color);
+}
+
+.import-hint {
+  font-size: 12px;
+  color: var(--td-text-color-secondary);
+  line-height: 1.6;
+  margin: 0 0 16px;
+}
+
+.import-file-input {
+  display: none;
+}
+
+.import-file-name {
+  margin-left: 8px;
+  font-size: 12px;
+  color: var(--td-text-color-placeholder);
 }
 </style>
 

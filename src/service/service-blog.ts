@@ -167,6 +167,13 @@ export function deleteSensitiveWord(id: number) {
   return request.delete(`${API_PREFIX}/sensitive-word/delete`, { params: { id } });
 }
 
+/** 管理端：从 txt 批量导入（multipart/form-data：file, level, status） */
+export function importSensitiveWordsFromTxt(formData: FormData) {
+  return request.post(`${API_PREFIX}/sensitive-word/import-txt`, formData, {
+    timeout: 120000,
+  });
+}
+
 // 管理端：举报列表
 export function getReportList(params?: { page?: number; size?: number }) {
   return request.get(`${API_PREFIX}/report/admin/list`, { params: params || {} });
