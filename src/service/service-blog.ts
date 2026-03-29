@@ -53,6 +53,22 @@ export function deletePostBatchAdmin(postIds: number[]) {
   return request.post(`${API_PREFIX}/post/admin/deleteBatch`, { postIds });
 }
 
+/** 管理端屏蔽帖子（App 端不可见） */
+export function shieldPostAdmin(postId: number) {
+  return request.post(`${API_PREFIX}/post/admin/shield`, null, {
+    params: { postId },
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+  });
+}
+
+/** 管理端取消屏蔽 */
+export function unshieldPostAdmin(postId: number) {
+  return request.post(`${API_PREFIX}/post/admin/unshield`, null, {
+    params: { postId },
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+  });
+}
+
 // 管理端：待审核帖子列表
 export function getPostPendingList(params?: { page?: number; size?: number }) {
   return request.get(`${API_PREFIX}/post/admin/pending`, { params: params || {} });

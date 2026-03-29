@@ -92,6 +92,12 @@
           </template>
           <template #op="slotProps">
             <a class="t-button-link" @click="handleViewDetail(slotProps.row)">详情</a>
+            <a
+              v-if="slotProps.row.status !== 3"
+              class="t-button-link"
+              @click="handleShield(slotProps.row)"
+            >屏蔽</a>
+            <a v-else class="t-button-link" @click="handleUnshield(slotProps.row)">取消屏蔽</a>
             <a class="t-button-link" @click="handleClickDelete(slotProps)">删除</a>
           </template>
         </t-table>
@@ -119,7 +125,15 @@
 <script lang="ts">
 import Vue from 'vue';
 import { SearchIcon } from 'tdesign-icons-vue';
-import { getPostList, getCategoryList, deletePostAdmin, deletePostBatchAdmin } from '@/service/service-blog';
+import { DialogPlugin } from 'tdesign-vue';
+import {
+  getPostList,
+  getCategoryList,
+  deletePostAdmin,
+  deletePostBatchAdmin,
+  shieldPostAdmin,
+  unshieldPostAdmin,
+} from '@/service/service-blog';
 import { formatPublishTimeBeijing } from '@/utils/date';
 import { prefix } from '@/config/global';
 
@@ -162,7 +176,7 @@ export default Vue.extend({
         { title: '评论数', colKey: 'commentCount', width: 80 },
         { title: '阅读量', colKey: 'viewCount', width: 80 },
         { title: '发布时间', colKey: 'createdAt', width: 200, cell: { col: 'createdAt' } },
-        { title: '操作', colKey: 'op', width: 120, align: 'left', fixed: 'right', cell: { col: 'op' } },
+        { title: '操作', colKey: 'op', width: 200, align: 'left', fixed: 'right', cell: { col: 'op' } },
       ],
       pagination: {
         current: 1,
@@ -328,6 +342,40 @@ export default Vue.extend({
       a.click();
       URL.revokeObjectURL(url);
       this.$message.success('导出成功');
+    },
+    handleShield(row: { id: number; title?: string }) {
+      const dialog = DialogPlugin.confirm({
+        header: '确认屏蔽',
+        body: `确定屏蔽「${row.title || '该文章'}」？屏蔽后用户在 App 中将无法看到该帖。`,
+        onConfirm: () => {
+          if (dialog && typeof dialog.hide === 'function') dialog.hide();
+          shieldPostAdmin(row.id)
+            .then(() => {
+              this.$message.success('已屏蔽');
+              this.loadData();
+            })
+            .catch((e: any) => {
+              this.$message.error('屏蔽失败：' + (e?.message || e?.msg || '请检查网络或后端'));
+            });
+        },
+      });
+    },
+    handleUnshield(row: { id: number; title?: string }) {
+      const dialog = DialogPlugin.confirm({
+        header: '取消屏蔽',
+        body: `确定恢复「${row.title || '该文章'}」为正常状态？`,
+        onConfirm: () => {
+          if (dialog && typeof dialog.hide === 'function') dialog.hide();
+          unshieldPostAdmin(row.id)
+            .then(() => {
+              this.$message.success('已取消屏蔽');
+              this.loadData();
+            })
+            .catch((e: any) => {
+              this.$message.error('操作失败：' + (e?.message || e?.msg || '请检查网络或后端'));
+            });
+        },
+      });
     },
     handleClickDelete(slotProps: { row: { id: number; title?: string } }) {
       this.deleteRow = slotProps.row;
