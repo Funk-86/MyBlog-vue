@@ -33,6 +33,8 @@
           :selected-row-keys="selectedRowKeys"
           :vertical-align="verticalAlign"
           :hover="hover"
+          :header-affixed-top="true"
+          :header-affix-props="{ offsetTop: offsetTop, container: getContainer }"
           @page-change="onPageChange"
           @select-change="onSelectChange"
         >
@@ -111,6 +113,7 @@ import Vue from 'vue';
 import { DialogPlugin } from 'tdesign-vue';
 import { SearchIcon } from 'tdesign-icons-vue';
 import { getUserList, updateUserStatus, createUser, type BanDuration } from '@/service/service-blog';
+import { prefix } from '@/config/global';
 
 export default Vue.extend({
   name: 'AdminUserList',
@@ -156,10 +159,18 @@ export default Vue.extend({
       },
     };
   },
+  computed: {
+    offsetTop() {
+      return this.$store.state.setting?.isUseTabsRouter ? 48 : 0;
+    },
+  },
   mounted() {
     this.loadData();
   },
   methods: {
+    getContainer() {
+      return document.querySelector(`.${prefix}-layout`) || document.body;
+    },
     loadData() {
       this.dataLoading = true;
       const keyword = (this.searchValue || '').trim() || undefined;
@@ -169,9 +180,10 @@ export default Vue.extend({
         keyword,
       })
         .then((res: any) => {
-          const list = Array.isArray(res) ? res : (res?.list || []);
+          const list = Array.isArray(res) ? res : (res?.list || res?.data || []);
           this.data = list;
-          this.pagination.total = list.length;
+          const total = typeof res?.total === 'number' ? res.total : list.length;
+          this.pagination.total = total;
         })
         .catch(() => {
           this.$message.error('加载失败');
