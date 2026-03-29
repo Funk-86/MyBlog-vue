@@ -6,10 +6,13 @@ import proxy from '@/config/host';
 
 const API_PREFIX = '';
 const env = (typeof import.meta !== 'undefined' && (import.meta as any).env?.MODE) || 'development';
-const API_BASE = (proxy as any)[env]?.API || 'https://myblog-java.zeabur.app';
+export const API_BASE = (proxy as any)[env]?.API || 'https://myblog-java.zeabur.app';
 
 /** 文章封面/图片上传接口 URL */
 export const UPLOAD_IMAGE_URL = `${API_BASE}/post/uploadImage`;
+
+/** 管理端：用户头像上传 form-data: userId, file */
+export const UPLOAD_USER_AVATAR_URL = `${API_BASE}/user/uploadAvatar`;
 
 // 文章
 export function getPostList(params?: {
@@ -69,9 +72,11 @@ export function unshieldPostAdmin(postId: number) {
   });
 }
 
-// 管理端：待审核帖子列表
-export function getPostPendingList(params?: { page?: number; size?: number }) {
-  return request.get(`${API_PREFIX}/post/admin/pending`, { params: params || {} });
+// 管理端：审核列表（可选 status：0已通过 1审核中 3AI拦截）
+export function getPostPendingList(params?: { page?: number; size?: number; status?: number }) {
+  const p: Record<string, unknown> = { ...params };
+  if (p.status == null || p.status === '') delete p.status;
+  return request.get(`${API_PREFIX}/post/admin/pending`, { params: p || {} });
 }
 
 // 管理端：审核通过帖子
@@ -222,9 +227,13 @@ export interface GetUserListParams {
   page?: number;
   size?: number;
   keyword?: string;
+  /** 0正常 1封禁 2注销 */
+  userStatus?: number;
 }
 export function getUserList(params?: GetUserListParams) {
-  return request.get(`${API_PREFIX}/user/admin/list`, { params: params || {} });
+  const p: Record<string, unknown> = { ...params };
+  if (p.userStatus == null || p.userStatus === '') delete p.userStatus;
+  return request.get(`${API_PREFIX}/user/admin/list`, { params: p });
 }
 
 /** 封禁时长：value + unit（day|month|year|permanent） */
@@ -259,6 +268,7 @@ export function updateUserAdmin(params: {
   nickname?: string;
   bio?: string;
   password?: string;
+  avatarUrl?: string;
 }) {
   return request.put(`${API_PREFIX}/user/admin/update`, params);
 }

@@ -5,6 +5,17 @@
         <div class="left-operation-container">
           <t-button theme="primary" @click="showAddUserDialog">添加用户</t-button>
           <t-button variant="outline" @click="loadData">刷新</t-button>
+          <t-select
+            v-model="filterUserStatus"
+            placeholder="按账号状态"
+            clearable
+            class="user-status-select"
+            @change="onSearch"
+          >
+            <t-option :value="0" label="正常" />
+            <t-option :value="1" label="封禁" />
+            <t-option :value="2" label="注销" />
+          </t-select>
           <t-button variant="base" theme="warning" :disabled="!selectedRowKeys.length || actionLoading" @click="handleBatchBan">封禁</t-button>
           <t-button variant="base" theme="danger" :disabled="!selectedRowKeys.length || actionLoading" @click="handleBatchDelete">删除</t-button>
           <span v-if="selectedRowKeys.length" class="selected-count">已选{{ selectedRowKeys.length }}项</span>
@@ -38,6 +49,11 @@
           @page-change="onPageChange"
           @select-change="onSelectChange"
         >
+          <template #avatarUrl="{ row }">
+            <t-avatar size="40px" :image="avatarFullUrl(row.avatarUrl)">
+              {{ (row.nickname || row.username || '?').charAt(0) }}
+            </t-avatar>
+          </template>
           <template #role="{ row }">
             <t-tag v-if="row.role === 1" theme="primary" variant="light" size="small">管理员</t-tag>
             <t-tag v-else theme="default" variant="light" size="small">普通用户</t-tag>
@@ -97,6 +113,24 @@
         @close="editUserVisible = false"
       >
         <t-form ref="editUserForm" :data="editUserForm" :rules="editUserRules" label-width="80">
+          <t-form-item label="头像" name="avatar">
+            <div class="avatar-edit-row">
+              <t-avatar size="56px" :image="avatarFullUrl(editUserForm.avatarUrl)">
+                {{ (editUserForm.nickname || editUserForm.username || '?').charAt(0) }}
+              </t-avatar>
+              <div class="avatar-edit-actions">
+                <input
+                  ref="avatarFileInput"
+                  type="file"
+                  accept="image/*"
+                  class="avatar-file-input"
+                  @change="onAvatarFileChange"
+                />
+                <t-button size="small" variant="outline" @click="triggerAvatarPick">上传图片</t-button>
+                <span class="avatar-tip">上传后保存时一并写入</span>
+              </div>
+            </div>
+          </t-form-item>
           <t-form-item label="用户名" name="username">
             <t-input v-model="editUserForm.username" placeholder="请输入用户名" clearable />
           </t-form-item>
@@ -146,8 +180,19 @@
 import Vue from 'vue';
 import { DialogPlugin } from 'tdesign-vue';
 import { SearchIcon } from 'tdesign-icons-vue';
-import { getUserList, updateUserStatus, createUser, updateUserAdmin, type BanDuration } from '@/service/service-blog';
+import request from '@/utils/request';
+import proxy from '@/config/host';
+import {
+  getUserList,
+  updateUserStatus,
+  createUser,
+  updateUserAdmin,
+  type BanDuration,
+} from '@/service/service-blog';
 import { prefix } from '@/config/global';
+
+const env = (typeof import.meta !== 'undefined' && (import.meta as any).env?.MODE) || 'development';
+const API_HOST = (proxy as any)[env]?.API || '';
 
 export default Vue.extend({
   name: 'AdminUserList',
@@ -158,11 +203,13 @@ export default Vue.extend({
       actionLoading: false,
       data: [] as any[],
       searchValue: '',
+      filterUserStatus: undefined as number | undefined,
       selectedRowKeys: [] as (string | number)[],
       verticalAlign: 'top' as const,
       hover: true,
       columns: [
         { colKey: 'row-select', type: 'multiple', width: 64, fixed: 'left' },
+        { title: '头像', colKey: 'avatarUrl', width: 80, align: 'center', cell: { col: 'avatarUrl' } },
         { title: '用户名', colKey: 'username', width: 120, ellipsis: true },
         { title: '昵称', colKey: 'nickname', width: 120, ellipsis: true },
         { title: '邮箱', colKey: 'email', ellipsis: true, minWidth: 180 },
@@ -201,6 +248,7 @@ export default Vue.extend({
         bio: '',
         password: '',
         role: 0,
+        avatarUrl: '',
       },
       editUserRules: {
         username: [{ required: true, message: '请输入用户名', trigger: 'blur' }],
@@ -223,6 +271,36 @@ export default Vue.extend({
     getContainer() {
       return document.querySelector(`.${prefix}-layout`) || document.body;
     },
+    avatarFullUrl(path: string | null | undefined) {
+      if (!path) return '';
+      const s = String(path).trim();
+      if (!s || s.startsWith('http://') || s.startsWith('https://')) return s;
+      return API_HOST ? `${API_HOST.replace(/\/$/, '')}${s.startsWith('/') ? '' : '/'}${s}` : s;
+    },
+    triggerAvatarPick() {
+      (this.$refs.avatarFileInput as HTMLInputElement)?.click?.();
+    },
+    onAvatarFileChange(ev: Event) {
+      const input = ev.target as HTMLInputElement;
+      const file = input.files && input.files[0];
+      if (!file || !this.editUserForm.id) return;
+      const fd = new FormData();
+      fd.append('userId', String(this.editUserForm.id));
+      fd.append('file', file);
+      request
+        .post('/user/uploadAvatar', fd)
+        .then((data: unknown) => {
+          const url = typeof data === 'string' ? data : '';
+          if (url) {
+            this.editUserForm.avatarUrl = url;
+            this.$message.success('头像已上传，请点击保存');
+          }
+        })
+        .catch(() => this.$message.error('头像上传失败'))
+        .finally(() => {
+          input.value = '';
+        });
+    },
     loadData() {
       this.dataLoading = true;
       const keyword = (this.searchValue || '').trim() || undefined;
@@ -230,6 +308,7 @@ export default Vue.extend({
         page: this.pagination.current,
         size: this.pagination.pageSize,
         keyword,
+        userStatus: this.filterUserStatus,
       })
         .then((res: any) => {
           const list = Array.isArray(res) ? res : (res?.list || res?.data || []);
@@ -332,6 +411,7 @@ export default Vue.extend({
         bio: row.bio != null ? String(row.bio) : '',
         password: '',
         role: row.role === 1 ? 1 : 0,
+        avatarUrl: row.avatarUrl != null ? String(row.avatarUrl) : '',
       };
       this.editUserVisible = true;
       this.$nextTick(() => {
@@ -361,6 +441,7 @@ export default Vue.extend({
         nickname?: string;
         bio?: string;
         password?: string;
+        avatarUrl?: string;
       } = {
         id: f.id,
         username: f.username.trim(),
@@ -371,6 +452,8 @@ export default Vue.extend({
       };
       const pwd = (f.password || '').trim();
       if (pwd) payload.password = pwd;
+      const av = (f.avatarUrl || '').trim();
+      if (av) payload.avatarUrl = av;
       updateUserAdmin(payload)
         .then((res: any) => {
           if (res?.success === false) {
@@ -452,6 +535,32 @@ export default Vue.extend({
 
 .search-input {
   width: 360px;
+}
+
+.user-status-select {
+  width: 140px;
+}
+
+.avatar-edit-row {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.avatar-edit-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+}
+
+.avatar-file-input {
+  display: none;
+}
+
+.avatar-tip {
+  font-size: 12px;
+  color: var(--td-text-color-placeholder);
 }
 
 .t-button-link {

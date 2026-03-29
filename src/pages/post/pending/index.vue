@@ -4,6 +4,17 @@
       <t-row justify="space-between" align="middle" class="list-operation-row">
         <div class="left-operation-container">
           <t-button variant="base" @click="loadData">刷新</t-button>
+          <t-select
+            v-model="filterStatus"
+            placeholder="按状态筛选（清空为全部）"
+            clearable
+            class="status-select"
+            @change="onSearch"
+          >
+            <t-option :value="1" label="审核中" />
+            <t-option :value="3" label="AI已拦截" />
+            <t-option :value="0" label="已通过" />
+          </t-select>
         </div>
       </t-row>
 
@@ -16,8 +27,16 @@
           :hover="hover"
           :pagination="pagination"
           :loading="dataLoading"
+          :header-affixed-top="true"
+          :header-affix-props="{ offsetTop: offsetTop, container: getContainer }"
           @page-change="onPageChange"
         >
+          <template #type="{ row }">
+            <t-tag v-if="row.type === 0" theme="primary" variant="light">文字</t-tag>
+            <t-tag v-else-if="row.type === 1" theme="success" variant="light">图文</t-tag>
+            <t-tag v-else-if="row.type === 2" theme="warning" variant="light">视频</t-tag>
+            <t-tag v-else theme="default" variant="light">{{ row.type }}</t-tag>
+          </template>
           <template #createdAt="{ row }">
             {{ formatPublishTimeBeijing(row.createdAt) }}
           </template>
@@ -29,7 +48,6 @@
           </template>
           <template #op="{ row }">
             <a class="t-button-link" @click="handleViewDetail(row)">详情</a>
-            <!-- 只有未处理（审核中）的帖子可以操作；已通过(0) 和 AI拦截(3) 只允许查看详情 -->
             <template v-if="row.status === 1">
               <a class="t-button-link" @click="handleApprove(row)">通过</a>
               <a class="t-button-link" @click="handleReject(row)">拒绝</a>
@@ -45,6 +63,7 @@
 import Vue from 'vue';
 import { getPostPendingList, approvePost, rejectPost } from '@/service/service-blog';
 import { formatPublishTimeBeijing } from '@/utils/date';
+import { prefix } from '@/config/global';
 
 export default Vue.extend({
   name: 'PostPending',
@@ -52,6 +71,7 @@ export default Vue.extend({
     return {
       dataLoading: false,
       data: [],
+      filterStatus: undefined as number | undefined,
       verticalAlign: 'top' as const,
       hover: true,
       columns: [
@@ -63,8 +83,8 @@ export default Vue.extend({
           width: 200,
         },
         { title: '分类', colKey: 'categoryName1', width: 100 },
-        { title: '类型', colKey: 'type', width: 80 },
-        { title: '状态', colKey: 'status', width: 90, cell: { col: 'status' } },
+        { title: '类型', colKey: 'type', width: 100, cell: { col: 'type' } },
+        { title: '状态', colKey: 'status', width: 100, cell: { col: 'status' } },
         { title: '作者', colKey: 'nickname', width: 120 },
         { title: '点赞', colKey: 'likeCount', width: 70 },
         { title: '评论数', colKey: 'commentCount', width: 80 },
@@ -79,22 +99,31 @@ export default Vue.extend({
       },
     };
   },
+  computed: {
+    offsetTop() {
+      return this.$store.state.setting?.isUseTabsRouter ? 48 : 0;
+    },
+  },
   mounted() {
     this.loadData();
   },
   methods: {
     formatPublishTimeBeijing,
+    getContainer() {
+      return document.querySelector(`.${prefix}-layout`) || document.body;
+    },
     loadData() {
       this.dataLoading = true;
-      // 使用专门的待审接口，由后端返回 status=1 或 3 的帖子
       getPostPendingList({
         page: this.pagination.current,
         size: this.pagination.pageSize,
+        status: this.filterStatus,
       })
         .then((res: any) => {
           const list = Array.isArray(res) ? res : (res?.list || res?.data || []);
           this.data = list;
-          this.pagination.total = list.length;
+          const total = typeof res?.total === 'number' ? res.total : list.length;
+          this.pagination.total = total;
         })
         .catch(() => {
           this.$message.error('加载失败');
@@ -107,6 +136,10 @@ export default Vue.extend({
     onPageChange(pageInfo: { current: number; pageSize: number }) {
       this.pagination.current = pageInfo.current;
       this.pagination.pageSize = pageInfo.pageSize;
+      this.loadData();
+    },
+    onSearch() {
+      this.pagination.current = 1;
       this.loadData();
     },
     handleViewDetail(row: { id: number }) {
@@ -149,6 +182,17 @@ export default Vue.extend({
 
 .list-operation-row {
   padding: 10px 0;
+}
+
+.left-operation-container {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.status-select {
+  width: 160px;
 }
 
 .t-button-link {
