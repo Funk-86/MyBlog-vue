@@ -12,9 +12,19 @@ const API_BASE = (proxy as any)[env]?.API || 'https://myblog-java.zeabur.app';
 export const UPLOAD_IMAGE_URL = `${API_BASE}/post/uploadImage`;
 
 // 文章
-export function getPostList(params?: { page?: number; size?: number; categoryId?: number }) {
+export function getPostList(params?: {
+  page?: number;
+  size?: number;
+  categoryId?: number;
+  year?: number;
+  month?: number;
+  keyword?: string;
+}) {
   const p: Record<string, unknown> = { ...params };
   if (p.categoryId == null || p.categoryId === '') delete p.categoryId;
+  if (p.year == null || p.year === '') delete p.year;
+  if (p.month == null || p.month === '') delete p.month;
+  if (p.keyword == null || String(p.keyword).trim() === '') delete p.keyword;
   // 管理端列表使用专门的接口，返回 { list, total }
   return request.get(`${API_PREFIX}/post/admin/list`, { params: p });
 }
@@ -34,6 +44,11 @@ export function deletePostAdmin(postId: number) {
     params: { postId },
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
   });
+}
+
+/** 管理端批量软删除 */
+export function deletePostBatchAdmin(postIds: number[]) {
+  return request.post(`${API_PREFIX}/post/admin/deleteBatch`, { postIds });
 }
 
 // 管理端：待审核帖子列表

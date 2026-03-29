@@ -5,6 +5,9 @@
         <div class="left-operation-container">
           <t-button @click="handleCreate">写文章</t-button>
           <t-button variant="base" theme="default" :disabled="!selectedRowKeys.length" @click="handleExport">导出文章</t-button>
+          <t-button theme="danger" variant="outline" :disabled="!selectedRowKeys.length" @click="handleBatchDeleteClick">
+            批量删除
+          </t-button>
           <t-select
             v-model="filterCategory"
             placeholder="按分类筛选"
@@ -13,6 +16,25 @@
             @change="onSearch"
           >
             <t-option v-for="c in categoryOptions" :key="c.id" :value="c.id" :label="c.name" />
+          </t-select>
+          <t-select
+            v-model="filterYear"
+            placeholder="按年筛选"
+            clearable
+            class="year-select"
+            @change="onYearFilterChange"
+          >
+            <t-option v-for="y in yearOptions" :key="y.value" :value="y.value" :label="y.label" />
+          </t-select>
+          <t-select
+            v-model="filterMonth"
+            placeholder="按月筛选"
+            clearable
+            class="month-select"
+            :disabled="filterYear == null"
+            @change="onSearch"
+          >
+            <t-option v-for="m in monthOptions" :key="m.value" :value="m.value" :label="m.label" />
           </t-select>
           <p v-if="selectedRowKeys.length" class="selected-count">已选{{ selectedRowKeys.length }}项</p>
         </div>
@@ -74,13 +96,21 @@
       @confirm="onConfirmDelete"
       :onCancel="onCancel"
     />
+    <t-dialog
+      header="确认批量删除"
+      :body="batchConfirmBody"
+      :visible.sync="batchConfirmVisible"
+      :confirm-btn="{ content: '删除', theme: 'danger', loading: batchDeleteSubmitting }"
+      @confirm="onConfirmBatchDelete"
+      @close="onBatchDialogClose"
+    />
   </div>
 </template>
 
 <script lang="ts">
 import Vue from 'vue';
 import { SearchIcon } from 'tdesign-icons-vue';
-import { getPostList, getCategoryList, deletePostAdmin } from '@/service/service-blog';
+import { getPostList, getCategoryList, deletePostAdmin, deletePostBatchAdmin } from '@/service/service-blog';
 import { formatPublishTimeBeijing } from '@/utils/date';
 import { prefix } from '@/config/global';
 
@@ -93,9 +123,13 @@ export default Vue.extend({
       data: [],
       searchValue: '',
       filterCategory: undefined,
+      filterYear: undefined as number | undefined,
+      filterMonth: undefined as number | undefined,
       categoryOptions: [],
       selectedRowKeys: [] as (string | number)[],
       deleteRow: null as { id: number; title?: string } | null,
+      batchConfirmVisible: false,
+      batchDeleteSubmitting: false,
       confirmVisible: false,
       verticalAlign: 'top' as const,
       hover: true,
@@ -128,9 +162,27 @@ export default Vue.extend({
     };
   },
   computed: {
+    yearOptions(): { value: number; label: string }[] {
+      const y = new Date().getFullYear();
+      const arr: { value: number; label: string }[] = [];
+      for (let i = y; i >= y - 15; i -= 1) {
+        arr.push({ value: i, label: `${i}年` });
+      }
+      return arr;
+    },
+    monthOptions(): { value: number; label: string }[] {
+      return Array.from({ length: 12 }, (_, i) => ({
+        value: i + 1,
+        label: `${i + 1}月`,
+      }));
+    },
     confirmBody(): string {
       if (!this.deleteRow) return '';
       return `删除后，${this.deleteRow.title || '该文章'}的所有信息将被清空，且无法恢复`;
+    },
+    batchConfirmBody(): string {
+      const n = this.selectedRowKeys.length;
+      return `将软删除已选 ${n} 篇文章（列表中可显示为已删除），是否继续？`;
     },
     offsetTop() {
       return this.$store.state.setting?.isUseTabsRouter ? 48 : 0;
@@ -152,10 +204,14 @@ export default Vue.extend({
     },
     loadData() {
       this.dataLoading = true;
+      const kw = (this.searchValue || '').trim();
       getPostList({
         page: this.pagination.current,
         size: this.pagination.pageSize,
         categoryId: this.filterCategory,
+        year: this.filterYear,
+        month: this.filterYear != null ? this.filterMonth : undefined,
+        keyword: kw || undefined,
       })
         .then((res: any) => {
           const list = Array.isArray(res) ? res : (res?.list || res?.data || []);
@@ -182,6 +238,44 @@ export default Vue.extend({
     onSearch() {
       this.pagination.current = 1;
       this.loadData();
+    },
+    onYearFilterChange() {
+      if (this.filterYear == null) {
+        this.filterMonth = undefined;
+      }
+      this.onSearch();
+    },
+    handleBatchDeleteClick() {
+      if (!this.selectedRowKeys.length) {
+        this.$message.warning('请先勾选要删除的文章');
+        return;
+      }
+      this.batchConfirmVisible = true;
+    },
+    onBatchDialogClose() {
+      this.batchDeleteSubmitting = false;
+    },
+    onConfirmBatchDelete() {
+      if (!this.selectedRowKeys.length || this.batchDeleteSubmitting) return;
+      const ids = this.selectedRowKeys.map((k) => Number(k)).filter((id) => !Number.isNaN(id));
+      if (!ids.length) {
+        this.$message.warning('没有有效的文章 ID');
+        return;
+      }
+      this.batchDeleteSubmitting = true;
+      deletePostBatchAdmin(ids)
+        .then(() => {
+          this.$message.success('批量删除成功');
+          this.batchConfirmVisible = false;
+          this.selectedRowKeys = [];
+          this.loadData();
+        })
+        .catch((e: any) => {
+          this.$message.error('批量删除失败：' + (e?.message || e?.msg || '请检查网络或后端'));
+        })
+        .finally(() => {
+          this.batchDeleteSubmitting = false;
+        });
     },
     handleCreate() {
       this.$router.push('/post/create');
@@ -264,9 +358,15 @@ export default Vue.extend({
     margin-left: var(--td-comp-margin-s);
   }
 
+  .category-select,
+  .year-select,
+  .month-select {
+    width: 130px;
+    margin-left: var(--td-comp-margin-s);
+  }
+
   .category-select {
     width: 160px;
-    margin-left: var(--td-comp-margin-s);
   }
 
   .selected-count {
