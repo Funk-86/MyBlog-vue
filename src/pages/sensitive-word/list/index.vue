@@ -25,15 +25,36 @@
         :vertical-align="verticalAlign"
         :hover="hover"
       >
+        <template #word="{ row }">
+          <t-input
+            v-model="row.word"
+            size="small"
+            class="word-input"
+            :disabled="row._saving"
+            placeholder="违禁词"
+            @blur="onWordBlur(row)"
+          />
+        </template>
         <template #level="{ row }">
-          <span v-if="row.level === 1">提示</span>
-          <span v-else-if="row.level === 2">拦截</span>
-          <span v-else-if="row.level === 3">人工审核</span>
-          <span v-else>-</span>
+          <t-select
+            v-model="row.level"
+            size="small"
+            class="level-select"
+            :disabled="row._saving"
+            @change="onLevelChange(row)"
+          >
+            <t-option :value="1" label="提示" />
+            <t-option :value="2" label="拦截" />
+            <t-option :value="3" label="人工审核" />
+          </t-select>
         </template>
         <template #status="{ row }">
-          <t-tag v-if="row.status === 0" theme="success" variant="light">启用</t-tag>
-          <t-tag v-else theme="default" variant="light">禁用</t-tag>
+          <t-switch
+            v-model="row._swEnabled"
+            :label="['启用', '禁用']"
+            :disabled="row._saving"
+            @change="onStatusToggle(row)"
+          />
         </template>
         <template #op="{ row }">
           <a class="t-button-link t-link-danger" @click="handleDelete(row)">删除</a>
@@ -116,6 +137,7 @@ import Vue from 'vue';
 import {
   getSensitiveWordList,
   createSensitiveWord,
+  updateSensitiveWord,
   deleteSensitiveWord,
   importSensitiveWordsFromTxt,
 } from '@/service/service-blog';
@@ -149,10 +171,9 @@ export default Vue.extend({
       deleteRows: null as { id: number; word?: string }[] | null,
       columns: [
         { colKey: 'row-select', type: 'multiple', width: 48, fixed: 'left' },
-        { title: 'ID', colKey: 'id', width: 80, align: 'left' },
-        { title: '违禁词', colKey: 'word', minWidth: 200, align: 'left', ellipsis: true },
-        { title: '级别', colKey: 'level', width: 120, align: 'left', cell: { col: 'level' } },
-        { title: '状态', colKey: 'status', width: 120, align: 'left', cell: { col: 'status' } },
+        { title: '违禁词', colKey: 'word', minWidth: 220, align: 'left', cell: { col: 'word' } },
+        { title: '级别', colKey: 'level', width: 160, align: 'left', cell: { col: 'level' } },
+        { title: '状态', colKey: 'status', width: 140, align: 'left', cell: { col: 'status' } },
         { title: '创建时间', colKey: 'createdAt', width: 180, align: 'left' },
         { title: '更新时间', colKey: 'updatedAt', width: 180, align: 'left' },
         { title: '操作', colKey: 'op', width: 120, align: 'left', fixed: 'right', cell: { col: 'op' } },
@@ -180,7 +201,15 @@ export default Vue.extend({
       this.dataLoading = true;
       getSensitiveWordList({ page: this.pagination.current, size: this.pagination.pageSize })
         .then((res: any) => {
-          const list = Array.isArray(res) ? res : (res?.list || res?.records || []);
+          const raw = Array.isArray(res) ? res : (res?.list || res?.records || []);
+          const list = raw.map((r: any) => ({
+            ...r,
+            _wordBackup: r.word,
+            _levelBackup: r.level,
+            _statusBackup: r.status,
+            _swEnabled: r.status === 0,
+            _saving: false,
+          }));
           this.data = list;
           const total = res?.total;
           this.pagination.total = typeof total === 'number' ? total : list.length;
@@ -259,6 +288,76 @@ export default Vue.extend({
     },
     onSelectChange(keys: (string | number)[]) {
       this.selectedRowKeys = keys;
+    },
+    onWordBlur(row: any) {
+      const w = (row.word || '').trim();
+      if (!w) {
+        this.$message.warning('违禁词不能为空');
+        row.word = row._wordBackup;
+        return;
+      }
+      if (w === row._wordBackup && row.level === row._levelBackup && row.status === row._statusBackup) return;
+      this.saveSensitiveRow(row);
+    },
+    onLevelChange(row: any) {
+      if (row.level === row._levelBackup) return;
+      this.saveSensitiveRow(row);
+    },
+    onStatusToggle(row: any) {
+      const newStatus = row._swEnabled ? 0 : 1;
+      if (newStatus === row._statusBackup) return;
+      row.status = newStatus;
+      this.saveSensitiveRow(row);
+    },
+    saveSensitiveRow(row: any) {
+      if (row._saving) return;
+      const word = (row.word || '').trim();
+      const level = row.level;
+      const status = row.status;
+      if (!word) {
+        this.$message.warning('违禁词不能为空');
+        row.word = row._wordBackup;
+        row.level = row._levelBackup;
+        row.status = row._statusBackup;
+        return;
+      }
+      if (
+        word === row._wordBackup &&
+        level === row._levelBackup &&
+        status === row._statusBackup
+      ) {
+        return;
+      }
+      row._saving = true;
+      updateSensitiveWord({ id: row.id, word, level, status })
+        .then((updated: any) => {
+          if (updated && typeof updated === 'object') {
+            row.word = updated.word;
+            row.level = updated.level;
+            row.status = updated.status;
+            row.createdAt = updated.createdAt;
+            row.updatedAt = updated.updatedAt;
+          } else {
+            row.word = word;
+            row.level = level;
+            row.status = status;
+          }
+          row._wordBackup = row.word;
+          row._levelBackup = row.level;
+          row._statusBackup = row.status;
+          row._swEnabled = row.status === 0;
+          this.$message.success('已保存');
+        })
+        .catch((e: any) => {
+          row.word = row._wordBackup;
+          row.level = row._levelBackup;
+          row.status = row._statusBackup;
+          row._swEnabled = row._statusBackup === 0;
+          this.$message.error(e?.response?.data?.message || e?.message || '保存失败');
+        })
+        .finally(() => {
+          row._saving = false;
+        });
     },
     onConfirmAdd() {
       const word = (this.addForm.word || '').trim();

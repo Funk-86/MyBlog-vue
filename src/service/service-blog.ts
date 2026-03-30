@@ -162,6 +162,11 @@ export function createSensitiveWord(data: { word: string; level?: number; status
   return request.post(`${API_PREFIX}/sensitive-word/add`, data);
 }
 
+// 管理端：更新违禁词
+export function updateSensitiveWord(data: { id: number; word: string; level?: number; status?: number }) {
+  return request.put(`${API_PREFIX}/sensitive-word/update`, data);
+}
+
 // 管理端：删除违禁词
 export function deleteSensitiveWord(id: number) {
   return request.delete(`${API_PREFIX}/sensitive-word/delete`, { params: { id } });
